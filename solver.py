@@ -106,40 +106,43 @@ def optimize_alloc(tags, horizontal, sol, start, end):
       orig = subtour[v][1]
       for pl in verticals:
         other = subtour[pl][0]
-        res = (orig, other)
+        res = (other, orig)
         cost = 0
         if pl >= 1:
             cost += slide_dist(tags, res, subtour[pl-1])
         if pl + 1 < len(subtour):
             cost += slide_dist(tags, res, subtour[pl+1])
-        weights.append(weight)
-      placement_weight.append(weight)
+        weights.append(cost)
+      placement_weight.append(weights)
         
-    #sol_tags = [slide_tags(tags, s) for s in subtour]
-    #distance_weight = [[cost_between_tags(sol_tags[i], sol_tags[j]) for i in range(nb_cities)] for j in range(nb_cities)]
-    #with localsolver.LocalSolver() as ls:
-    #    model = ls.model
-    #    cities = model.list(end - start)
-    #    model.constraint(model.count(cities) == end-start)
-    #    distance_array = model.array(distance_weight)
-    #    dist_selector = model.function(lambda i: model.at(distance_array, cities[i-1], cities[i]))
-    #    obj = model.sum(model.range(1, nb_cities), dist_selector)
-    #    model.maximize(obj)
-    #    ls.param.verbosity = 0
-    #    model.close()
-    #    ls.param.time_limit = 5
-    #    for c in range(nb_cities):
-    #      cities.value.add(c)
-    #    ls.solve()
-    #    new_subtour = [subtour[c] for c in cities.value]
-    #    sol[start:end] = new_subtour
-
+    with localsolver.LocalSolver() as ls:
+        model = ls.model
+        cities = model.list(len(verticals))
+        model.constraint(model.count(cities) == len(verticals))
+        placement_array = model.array(placement_weight)
+        dist_selector = model.function(lambda i: model.at(placement_array, cities[i], i))
+        obj = model.sum(model.range(0, nb_cities), dist_selector)
+        model.maximize(obj)
+        ls.param.verbosity = 0
+        model.close()
+        ls.param.time_limit = 5
+        for c in range(nb_cities):
+          cities.value.add(c)
+        print ("Initial objective", obj.value)
+        ls.solve()
+        print ("Final objective", obj.value)
+        new_subtour = list(subtour)
+        allocs = [verticals[c] for c in cities.value]
+        for v, alloc in zip(verticals, allocs):
+          new_subtour[alloc] = (subtour[alloc][0], subtour[v][1])
+        sol[start:end] = new_subtour
 
 def reoptimize(tags, horizontal, sol, subsize, start):
     for i in range(200):
         if (i+1) * subsize + start > len(sol):
           break
         optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
+        #optimize_alloc(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
         print (sol_cost(tags, sol))
 
 if len(sys.argv) < 2:
@@ -151,7 +154,8 @@ tags, horizontal = parse_file(sys.argv[1])
 sol = [(i,) for i in range(len(tags))]
 sol = make_paired_solution(tags, horizontal)
 if len(sys.argv) >= 3:
-  parse_solution(sys.argv[2])
+  sol = parse_solution(sys.argv[2])
+random.shuffle(sol)
 print ("Initial solution at ", sol_cost(tags, sol))
 
 reoptimize(tags, horizontal, sol, 500, 0)
