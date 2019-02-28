@@ -26,13 +26,13 @@ def write_solution(sol, filename):
           if len(s) == 1:
             print(s[0], file=f)
           else:
-            print(s[0], sol[1], file=f)
+            print(s[0], s[1], file=f)
 
 def slide_tags(tags, slide):
     if len(slide) == 1:
       return tags[slide[0]]
     else:
-      return tags[slide[0]] & tags[slide[1]]
+      return tags[slide[0]] | tags[slide[1]]
 
 def cost_between_tags(ti, tj):
 	return min( len(ti&tj), len(ti-tj), len(tj-ti) )
@@ -44,6 +44,11 @@ def sol_cost(tags, sol):
       cost += cost_between_tags(sol_tags[i], sol_tags[i+1])
     return cost
 
+def make_paired_solution(tags, horizontal):
+    vimgs = [i for i, h in enumerate(horizontal) if not h]
+    himgs = [i for i, h in enumerate(horizontal) if h]
+    return [(i,) for i in himgs] + [(vimgs[2*j], vimgs[2*j+1]) for j in range(int(len(vimgs)/2))]
+
 if len(sys.argv) < 2:
   print("solver.py input [output]")
   sys.exit(1)
@@ -51,6 +56,7 @@ if len(sys.argv) < 2:
 tags, horizontal = parse_file(sys.argv[1])
 
 sol = [(i,) for i in range(len(tags))]
+sol = make_paired_solution(tags, horizontal)
 
 print (sol_cost(tags, sol))
 
