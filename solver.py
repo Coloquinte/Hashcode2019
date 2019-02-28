@@ -58,7 +58,8 @@ def sol_cost(tags, sol):
     sol_tags = [slide_tags(tags, s) for s in sol]
     cost = 0
     for i in range(len(sol) - 1):
-      cost += cost_between_tags(sol_tags[i], sol_tags[i+1])
+      loc = cost_between_tags(sol_tags[i], sol_tags[i+1])
+      cost += loc
     return cost
 
 def make_paired_solution(tags, horizontal):
@@ -88,9 +89,9 @@ def optimize_tsp(tags, horizontal, sol, start, end):
         ls.solve()
         new_subtour = [subtour[c] for c in cities.value]
         sol[start:end] = new_subtour
+    print (sol_cost(tags, sol))
 
 def optimize_alloc(tags, horizontal, sol, start, end):
-    print("Alloc from ", start, " to ", end)
     subtour = sol[start:end]
     last_vertical = -2
     verticals = []
@@ -98,6 +99,9 @@ def optimize_alloc(tags, horizontal, sol, start, end):
         if len(s) == 2 and i > last_vertical + 1:
           last_vertical = i
           verticals.append(i)
+    if len(verticals) < 2:
+      return
+    print("Alloc from ", start, " to ", end)
 
     nb_cities = len(verticals)
     placement_weight = []
@@ -120,12 +124,12 @@ def optimize_alloc(tags, horizontal, sol, start, end):
         cities = model.list(len(verticals))
         model.constraint(model.count(cities) == len(verticals))
         placement_array = model.array(placement_weight)
-        dist_selector = model.function(lambda i: model.at(placement_array, cities[i], i))
+        dist_selector = model.function(lambda i: model.at(placement_array, i, cities[i]))
         obj = model.sum(model.range(0, nb_cities), dist_selector)
         model.maximize(obj)
         ls.param.verbosity = 0
         model.close()
-        ls.param.time_limit = 5
+        ls.param.time_limit = 15
         for c in range(nb_cities):
           cities.value.add(c)
         print ("Initial objective", obj.value)
@@ -136,14 +140,25 @@ def optimize_alloc(tags, horizontal, sol, start, end):
         for v, alloc in zip(verticals, allocs):
           new_subtour[alloc] = (subtour[alloc][0], subtour[v][1])
         sol[start:end] = new_subtour
+    print (sol_cost(tags, sol))
 
-def reoptimize(tags, horizontal, sol, subsize, start):
+def save_solution(sol):
+  if len(sys.argv) >= 3:
+    write_solution(sol, sys.argv[2])
+
+def reoptimize_alloc(tags, horizontal, sol, subsize, start):
+    for i in range(200):
+        if (i+1) * subsize + start > len(sol):
+          break
+        optimize_alloc(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
+    save_solution(sol)
+
+def reoptimize_tsp(tags, horizontal, sol, subsize, start):
     for i in range(200):
         if (i+1) * subsize + start > len(sol):
           break
         optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
-        #optimize_alloc(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
-        print (sol_cost(tags, sol))
+    save_solution(sol)
 
 if len(sys.argv) < 2:
   print("solver.py input [output]")
@@ -155,15 +170,12 @@ sol = [(i,) for i in range(len(tags))]
 sol = make_paired_solution(tags, horizontal)
 if len(sys.argv) >= 3:
   sol = parse_solution(sys.argv[2])
-random.shuffle(sol)
+
 print ("Initial solution at ", sol_cost(tags, sol))
 
-reoptimize(tags, horizontal, sol, 500, 0)
-reoptimize(tags, horizontal, sol, 500, 250)
+reoptimize_alloc(tags, horizontal, sol, 5000, 0)
+reoptimize_alloc(tags, horizontal, sol, 5000, 2500)
 print ("Final solution at ", sol_cost(tags, sol))
-
-if len(sys.argv) >= 3:
-  write_solution(sol, sys.argv[2])
 
 
 
