@@ -68,7 +68,7 @@ def make_paired_solution(tags, horizontal):
     return [(i,) for i in himgs] + [(vimgs[2*j], vimgs[2*j+1]) for j in range(int(len(vimgs)/2))]
 
 def optimize_tsp(tags, horizontal, sol, start, end):
-    print("TSP from ", start, " to ", end)
+    print("TSP from ", start, " to ", end, " out of ", len(sol))
     subtour = sol[start:end]
     nb_cities = len(subtour)
     sol_tags = [slide_tags(tags, s) for s in subtour]
@@ -83,7 +83,7 @@ def optimize_tsp(tags, horizontal, sol, start, end):
         model.maximize(obj)
         ls.param.verbosity = 0
         model.close()
-        ls.param.time_limit = 5
+        ls.param.time_limit = 2
         for c in range(nb_cities):
           cities.value.add(c)
         ls.solve()
@@ -101,7 +101,7 @@ def optimize_alloc(tags, horizontal, sol, start, end):
           verticals.append(i)
     if len(verticals) < 2:
       return
-    print("Alloc from ", start, " to ", end)
+    print("Alloc from ", start, " to ", end, " out of ", len(sol))
 
     nb_cities = len(verticals)
     placement_weight = []
@@ -129,7 +129,7 @@ def optimize_alloc(tags, horizontal, sol, start, end):
         model.maximize(obj)
         ls.param.verbosity = 0
         model.close()
-        ls.param.time_limit = 15
+        ls.param.time_limit = 5
         for c in range(nb_cities):
           cities.value.add(c)
         print ("Initial objective", obj.value)
@@ -151,14 +151,14 @@ def reoptimize_alloc(tags, horizontal, sol, subsize, start):
         if (i+1) * subsize + start > len(sol):
           break
         optimize_alloc(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
-    save_solution(sol)
+        save_solution(sol)
 
 def reoptimize_tsp(tags, horizontal, sol, subsize, start):
     for i in range(200):
         if (i+1) * subsize + start > len(sol):
           break
         optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
-    save_solution(sol)
+        save_solution(sol)
 
 if len(sys.argv) < 2:
   print("solver.py input [output]")
@@ -173,8 +173,10 @@ if len(sys.argv) >= 3:
 
 print ("Initial solution at ", sol_cost(tags, sol))
 
-reoptimize_alloc(tags, horizontal, sol, 5000, 0)
-reoptimize_alloc(tags, horizontal, sol, 5000, 2500)
+#reoptimize_alloc(tags, horizontal, sol, 1000, 0)
+#reoptimize_alloc(tags, horizontal, sol, 1000, 500)
+reoptimize_tsp(tags, horizontal, sol, 300, 0)
+reoptimize_tsp(tags, horizontal, sol, 300, 150)
 print ("Final solution at ", sol_cost(tags, sol))
 
 
