@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import sys
-import networkx
 import localsolver
 
 def parse_file(filename):
@@ -20,6 +19,16 @@ def parse_file(filename):
         assert len(tags) == nb_images
         assert len(horizontal) == nb_images
         return (tags, horizontal)
+
+def parse_solution(filename):
+    with open(filename) as f:
+        lines = f.readlines()
+        nb_slides = int(lines[0])
+        slides = []
+        for l in lines[1:]:
+          slides.append(tuple([int(i) for i in l.split()]))
+        assert len(slides) == nb_slides
+        return slides
 
 def write_solution(sol, filename):
     with open(filename, "w") as f:
@@ -60,6 +69,7 @@ def make_paired_solution_matching(tags, horizontal):
     return [(i,) for i in himgs] + vslides
 
 def optimize(tags, horizontal, sol, start, end):
+    print("Reoptimizing from ", start, " to ", end)
     subtour = sol[start:end]
     nb_cities = len(subtour)
     sol_tags = [slide_tags(tags, s) for s in subtour]
@@ -72,13 +82,21 @@ def optimize(tags, horizontal, sol, start, end):
         dist_selector = model.function(lambda i: model.at(distance_array, cities[i-1], cities[i]))
         obj = model.sum(model.range(1, nb_cities), dist_selector)
         model.maximize(obj)
+        ls.param.verbosity = 0
         model.close()
-        ls.param.time_limit = 10
+        ls.param.time_limit = 5
         for c in range(nb_cities):
           cities.value.add(c)
         ls.solve()
         new_subtour = [subtour[c] for c in cities.value]
         sol[start:end] = new_subtour
+
+def reoptimize(tags, horizontal, sol, subsize, start):
+    for i in range(200):
+        if (i+1) * subsize + start > len(sol):
+          break
+        optimize(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
+        print (sol_cost(tags, sol))
 
 if len(sys.argv) < 2:
   print("solver.py input [output]")
@@ -88,16 +106,13 @@ tags, horizontal = parse_file(sys.argv[1])
 
 sol = [(i,) for i in range(len(tags))]
 sol = make_paired_solution(tags, horizontal)
-#sol = make_paired_solution_matching(tags, horizontal)
+if len(sys.argv) >= 3:
+  parse_solution(sys.argv[2])
+print ("Initial solution at ", sol_cost(tags, sol))
 
-print (sol_cost(tags, sol))
-
-subsize = 500
-for i in range(10):
-    if (i+1) * subsize > len(sol):
-      break
-    optimize(tags, horizontal, sol, i * subsize, min( (i+1) * subsize, len(sol)))
-    print (sol_cost(tags, sol))
+reoptimize(tags, horizontal, sol, 500, 0)
+reoptimize(tags, horizontal, sol, 500, 250)
+print ("Final solution at ", sol_cost(tags, sol))
 
 if len(sys.argv) >= 3:
   write_solution(sol, sys.argv[2])
