@@ -83,7 +83,7 @@ def optimize_tsp(tags, horizontal, sol, start, end):
         model.maximize(obj)
         ls.param.verbosity = 0
         model.close()
-        ls.param.time_limit = 2
+        ls.param.time_limit = 5
         for c in range(nb_cities):
           cities.value.add(c)
         ls.solve()
@@ -132,9 +132,7 @@ def optimize_alloc(tags, horizontal, sol, start, end):
         ls.param.time_limit = 5
         for c in range(nb_cities):
           cities.value.add(c)
-        print ("Initial objective", obj.value)
         ls.solve()
-        print ("Final objective", obj.value)
         new_subtour = list(subtour)
         allocs = [verticals[c] for c in cities.value]
         for v, alloc in zip(verticals, allocs):
@@ -160,6 +158,14 @@ def reoptimize_tsp(tags, horizontal, sol, subsize, start):
         optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
         save_solution(sol)
 
+def reoptimize(tags, horizontal, sol, subsize, start):
+    for i in range(200):
+        if (i+1) * subsize + start > len(sol):
+          break
+        optimize_alloc(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
+        optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
+        save_solution(sol)
+
 if len(sys.argv) < 2:
   print("solver.py input [output]")
   sys.exit(1)
@@ -175,8 +181,9 @@ print ("Initial solution at ", sol_cost(tags, sol))
 
 #reoptimize_alloc(tags, horizontal, sol, 1000, 0)
 #reoptimize_alloc(tags, horizontal, sol, 1000, 500)
-reoptimize_tsp(tags, horizontal, sol, 300, 0)
-reoptimize_tsp(tags, horizontal, sol, 300, 150)
+#reoptimize_tsp(tags, horizontal, sol, 300, 0)
+#reoptimize_tsp(tags, horizontal, sol, 300, 150)
+reoptimize(tags, horizontal, sol, 500, 250)
 print ("Final solution at ", sol_cost(tags, sol))
 
 
