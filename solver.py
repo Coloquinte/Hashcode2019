@@ -2,6 +2,7 @@
 
 import sys
 import localsolver
+import random
 
 def parse_file(filename):
     with open(filename) as f:
@@ -48,6 +49,11 @@ def slide_tags(tags, slide):
 def cost_between_tags(ti, tj):
 	return min( len(ti&tj), len(ti-tj), len(tj-ti) )
 
+def slide_dist(tags, slide1, slide2):
+    t1 = slide_tags(tags, slide1)
+    t2 = slide_tags(tags, slide2)
+    return cost_between_tags(t1, t2)
+
 def sol_cost(tags, sol):
     sol_tags = [slide_tags(tags, s) for s in sol]
     cost = 0
@@ -60,16 +66,8 @@ def make_paired_solution(tags, horizontal):
     himgs = [i for i, h in enumerate(horizontal) if h]
     return [(i,) for i in himgs] + [(vimgs[2*j], vimgs[2*j+1]) for j in range(int(len(vimgs)/2))]
 
-def make_paired_solution_matching(tags, horizontal):
-    vimgs = [i for i, h in enumerate(horizontal) if not h]
-    himgs = [i for i, h in enumerate(horizontal) if h]
-    vslides = [(vimgs[2*j], vimgs[2*j+1]) for j in range(int(len(vimgs)/2))]
-    sum_common = sum(len(tags[v[0]] & tags[v[1]]) for v in vslides)
-    #print("Common", sum_common)
-    return [(i,) for i in himgs] + vslides
-
-def optimize(tags, horizontal, sol, start, end):
-    print("Reoptimizing from ", start, " to ", end)
+def optimize_tsp(tags, horizontal, sol, start, end):
+    print("TSP from ", start, " to ", end)
     subtour = sol[start:end]
     nb_cities = len(subtour)
     sol_tags = [slide_tags(tags, s) for s in subtour]
@@ -91,11 +89,57 @@ def optimize(tags, horizontal, sol, start, end):
         new_subtour = [subtour[c] for c in cities.value]
         sol[start:end] = new_subtour
 
+def optimize_alloc(tags, horizontal, sol, start, end):
+    print("Alloc from ", start, " to ", end)
+    subtour = sol[start:end]
+    last_vertical = -2
+    verticals = []
+    for i, s in enumerate(subtour):
+        if len(s) == 2 and i > last_vertical + 1:
+          last_vertical = i
+          verticals.append(i)
+
+    nb_cities = len(verticals)
+    placement_weight = []
+    for v in verticals:
+      weights = []
+      orig = subtour[v][1]
+      for pl in verticals:
+        other = subtour[pl][0]
+        res = (orig, other)
+        cost = 0
+        if pl >= 1:
+            cost += slide_dist(tags, res, subtour[pl-1])
+        if pl + 1 < len(subtour):
+            cost += slide_dist(tags, res, subtour[pl+1])
+        weights.append(weight)
+      placement_weight.append(weight)
+        
+    #sol_tags = [slide_tags(tags, s) for s in subtour]
+    #distance_weight = [[cost_between_tags(sol_tags[i], sol_tags[j]) for i in range(nb_cities)] for j in range(nb_cities)]
+    #with localsolver.LocalSolver() as ls:
+    #    model = ls.model
+    #    cities = model.list(end - start)
+    #    model.constraint(model.count(cities) == end-start)
+    #    distance_array = model.array(distance_weight)
+    #    dist_selector = model.function(lambda i: model.at(distance_array, cities[i-1], cities[i]))
+    #    obj = model.sum(model.range(1, nb_cities), dist_selector)
+    #    model.maximize(obj)
+    #    ls.param.verbosity = 0
+    #    model.close()
+    #    ls.param.time_limit = 5
+    #    for c in range(nb_cities):
+    #      cities.value.add(c)
+    #    ls.solve()
+    #    new_subtour = [subtour[c] for c in cities.value]
+    #    sol[start:end] = new_subtour
+
+
 def reoptimize(tags, horizontal, sol, subsize, start):
     for i in range(200):
         if (i+1) * subsize + start > len(sol):
           break
-        optimize(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
+        optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
         print (sol_cost(tags, sol))
 
 if len(sys.argv) < 2:
