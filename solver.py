@@ -183,6 +183,7 @@ print ("Initial solution at ", sol_cost(tags, sol))
 #reoptimize_alloc(tags, horizontal, sol, 1000, 500)
 #reoptimize_tsp(tags, horizontal, sol, 300, 0)
 #reoptimize_tsp(tags, horizontal, sol, 300, 150)
+reoptimize(tags, horizontal, sol, 500, 0)
 reoptimize(tags, horizontal, sol, 500, 250)
 print ("Final solution at ", sol_cost(tags, sol))
 
