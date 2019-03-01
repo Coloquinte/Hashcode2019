@@ -83,7 +83,7 @@ def optimize_tsp(tags, horizontal, sol, start, end):
         model.maximize(obj)
         ls.param.verbosity = 0
         model.close()
-        ls.param.time_limit = 2
+        ls.param.time_limit = 15
         for c in range(nb_cities):
           cities.value.add(c)
         ls.solve()
@@ -91,17 +91,23 @@ def optimize_tsp(tags, horizontal, sol, start, end):
         sol[start:end] = new_subtour
     print (sol_cost(tags, sol))
 
+def shuffle_vertical_images(sol):
+    for i in range(len(sol)):
+      if len(sol[i]) == 2 and random.random() < 0.5:
+        sol[i] = (sol[i][1], sol[i][0])
+
 def optimize_alloc(tags, horizontal, sol, start, end):
     subtour = sol[start:end]
     last_vertical = -2
     verticals = []
     for i, s in enumerate(subtour):
-        if len(s) == 2 and i > last_vertical + 1:
+        if len(s) == 2 and i > last_vertical + 1 and random.random() < 0.8:
           last_vertical = i
           verticals.append(i)
     if len(verticals) < 2:
       return
     print("Alloc from ", start, " to ", end, " out of ", len(sol))
+    shuffle_vertical_images(subtour)
 
     nb_cities = len(verticals)
     placement_weight = []
@@ -129,7 +135,7 @@ def optimize_alloc(tags, horizontal, sol, start, end):
         model.maximize(obj)
         ls.param.verbosity = 0
         model.close()
-        ls.param.time_limit = 2
+        ls.param.time_limit = 15
         for c in range(nb_cities):
           cities.value.add(c)
         ls.solve()
@@ -146,14 +152,14 @@ def save_solution(sol):
 
 def reoptimize_alloc(tags, horizontal, sol, subsize, start):
     for i in range(200):
-        if (i+1) * subsize + start > len(sol):
+        if i * subsize + start >= len(sol):
           break
         optimize_alloc(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
         save_solution(sol)
 
 def reoptimize_tsp(tags, horizontal, sol, subsize, start):
     for i in range(200):
-        if (i+1) * subsize + start > len(sol):
+        if i * subsize + start >= len(sol):
           break
         optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
         save_solution(sol)
@@ -162,18 +168,19 @@ def reoptimize(tags, horizontal, sol, subsize, start):
     lst = list(range(200))
     random.shuffle(lst)
     for i in lst:
-        if (i+1) * subsize + start > len(sol):
+        if i * subsize + start >= len(sol):
           continue
         optimize_alloc(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
         optimize_tsp(tags, horizontal, sol, i * subsize + start, min( (i+1) * subsize + start, len(sol)))
         save_solution(sol)
 
 def shuffle_tsp(sol):
+  rng = 1000
   n = len(sol)
-  solc = [ sol[500*s:500*(s+1)] for s in range(int(len(sol)/500)) ]
+  solc = [ sol[rng*s:rng*(s+1)] for s in range(int(len(sol)/rng)) ]
   random.shuffle(solc)
-  for s in range(int(len(sol)/500)):
-    sol[500*s:500*(s+1)] = solc[s] 
+  for s in range(int(len(sol)/rng)):
+    sol[rng*s:rng*(s+1)] = solc[s] 
 
 if len(sys.argv) < 2:
   print("solver.py input [output]")
@@ -196,8 +203,8 @@ print ("Shuffled solution at ", sol_cost(tags, sol))
 #reoptimize_tsp(tags, horizontal, sol, 300, 0)
 #reoptimize_tsp(tags, horizontal, sol, 300, 150)
 
-reoptimize(tags, horizontal, sol, 300, 0)
-reoptimize(tags, horizontal, sol, 300, 150)
+reoptimize(tags, horizontal, sol, 1000, 0)
+reoptimize(tags, horizontal, sol, 1000, 500)
 print ("Final solution at ", sol_cost(tags, sol))
 
 
