@@ -194,7 +194,7 @@ if len(sys.argv) >= 3:
   sol = parse_solution(sys.argv[2])
 
 print ("Initial solution at ", sol_cost(tags, sol))
-shuffle_tsp(sol)
+#shuffle_tsp(sol)
 print ("Shuffled solution at ", sol_cost(tags, sol))
 
 
