@@ -34,7 +34,9 @@ class Problem {
   void initGreedy();
   void reoptimizeLocal();
   void reoptimizeAssignment();
-  void report();
+
+  void report() const;
+  void check() const;
 
  private:
   Roaring tags(pair<int, int> slide) const;
@@ -140,7 +142,7 @@ int Problem::nbVerticalImages() const {
   return nb;
 }
 
-void Problem::report() {
+void Problem::report() const {
   cout << nbImages() << " images" << endl;
   cout << nbVerticalImages() << " vertical images" << endl;
   cout << nbTags() << " tags" << endl;
@@ -479,6 +481,27 @@ void Problem::reoptimizeAssignment() {
   }
 }
 
+void Problem::check() const {
+  unordered_set<int> used;
+  for (pair<int, int> s : solution_) {
+    assert (s.first >= 0 && s.first < nbImages());
+    assert (s.second < nbImages());
+    if (s.second < 0) {
+      assert (!imageVertical_[s.first]);
+      assert (!used.count(s.first));
+      used.insert(s.first);
+    }
+    else {
+      assert (imageVertical_[s.first] && imageVertical_[s.second]);
+      assert (!used.count(s.first));
+      used.insert(s.first);
+      assert (!used.count(s.second));
+      used.insert(s.second);
+    }
+  }
+  assert (used.size() == nbImages());
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) {
     cout << "Usage: hashcode inputFile [outputFile]" << endl;
@@ -489,6 +512,7 @@ int main(int argc, char **argv) {
   //pb.report();
   if (argc >= 3) {
     pb.readSolution(argv[2]);
+    pb.check();
   }
   //pb.initNaive();
   //pb.initGreedy();
@@ -496,6 +520,7 @@ int main(int argc, char **argv) {
 
   pb.reoptimizeLocal();
   pb.reoptimizeAssignment();
+  pb.check();
 
   cout << "Objective value: " << pb.objective() << endl;
   cout << endl;
