@@ -278,19 +278,20 @@ void Problem::optimizeVerticalAssignment() {
   }
 
   //cout << "Creating assignment problem" << endl;
-  int subrangeSize = 20000;
+  int subrangeSize = 5000;
   int start = uniform_int_distribution<int>(0, nbSlides() - 1)(rgen_);
   vector<int> allSlides;
   for (int i = 0; i < subrangeSize && i < nbSlides(); ++i)
     allSlides.push_back( (start + i) % nbSlides());
   shuffle(allSlides.begin(), allSlides.end(), rgen_);
 
-  const int maxSlides = 5000;
+  const int maxSlides = 1000;
   set<int> usedSet;
   for (int s : allSlides) {
     if (usedSet.size() > maxSlides) break;
     if (usedSet.count(s-1)) continue;
     if (usedSet.count(s+1)) continue;
+    if (solution_[s].second < 0) continue;
     usedSet.insert(s);
   }
 
@@ -476,7 +477,7 @@ void Problem::reoptimizeLocal() {
 }
 
 void Problem::reoptimizeAssignment() {
-  for (int i = 0; i < 1; ++i) {
+  for (int i = 0; i < 10; ++i) {
     optimizeVerticalAssignment();
   }
 }
@@ -514,8 +515,10 @@ int main(int argc, char **argv) {
     pb.readSolution(argv[2]);
     pb.check();
   }
-  //pb.initNaive();
-  //pb.initGreedy();
+  else {
+    //pb.initNaive();
+    pb.initGreedy();
+  }
   cout << "Initial objective value: " << pb.objective() << endl;
 
   pb.reoptimizeLocal();
