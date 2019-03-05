@@ -77,6 +77,8 @@ def optimize_tsp(tags, horizontal, sol, start, end):
         model = ls.model
         cities = model.list(end - start)
         model.constraint(model.count(cities) == end-start)
+        model.constraint(model.index(cities, 0) == 0)
+        model.constraint(model.index(cities, end-start-1) == end-start-1)
         distance_array = model.array(distance_weight)
         dist_selector = model.function(lambda i: model.at(distance_array, cities[i-1], cities[i]))
         obj = model.sum(model.range(1, nb_cities), dist_selector)

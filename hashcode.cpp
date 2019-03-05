@@ -5,12 +5,15 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <set>
 #include <random>
 #include <sstream>
 #include <cassert>
 
 #include "roaring.hh"
 #include "roaring.c"
+#include "hungarian.h"
+#include "hungarian.c"
 
 using namespace std;
 
@@ -29,7 +32,8 @@ class Problem {
 
   void initNaive();
   void initGreedy();
-  void reoptimize();
+  void reoptimizeLocal();
+  void reoptimizeAssignment();
   void report();
 
  private:
@@ -44,6 +48,8 @@ class Problem {
 
   void try2Opt();
   void tryExchange();
+  void tryVerticalExchange();
+  void optimizeVerticalAssignment();
 
  private:
   Problem()
@@ -263,6 +269,75 @@ int Problem::randomNextImageAny() const {
   return -1;
 }
 
+void Problem::optimizeVerticalAssignment() {
+  for (pair<int, int> &slide : solution_) {
+    if (slide.second >= 0 && bernoulli_distribution()(rgen_))
+      swap(slide.first, slide.second);
+  }
+
+  //cout << "Creating assignment problem" << endl;
+  int subrangeSize = 20000;
+  int start = uniform_int_distribution<int>(0, nbSlides() - 1)(rgen_);
+  vector<int> allSlides;
+  for (int i = 0; i < subrangeSize && i < nbSlides(); ++i)
+    allSlides.push_back( (start + i) % nbSlides());
+  shuffle(allSlides.begin(), allSlides.end(), rgen_);
+
+  const int maxSlides = 5000;
+  set<int> usedSet;
+  for (int s : allSlides) {
+    if (usedSet.size() > maxSlides) break;
+    if (usedSet.count(s-1)) continue;
+    if (usedSet.count(s+1)) continue;
+    usedSet.insert(s);
+  }
+
+  vector<int> used(usedSet.begin(), usedSet.end());
+  int **costMat;
+  costMat = new int*[used.size()];
+  for (int i = 0; i < used.size(); ++i) {
+    costMat[i] = new int[used.size()];
+  }
+  // Solve an assignment problem
+  for (int i = 0; i < used.size(); ++i) {
+    int s1 = used[i];
+    for (int j = 0; j < used.size(); ++j) {
+      int s2 = used[j];
+      int cost = 0;
+      pair<int, int> slide (solution_[s2].first, solution_[s1].second);
+      if (s2 > 0) cost += distance(slide, solution_[s2-1]);
+      if (s2 + 1 < solution_.size()) cost += distance(slide, solution_[s2+1]);
+      costMat[i][j] = cost;
+    }
+  }
+
+  //cout << "Solving assignment problem" << endl;
+  hungarian_problem_t p;
+  hungarian_init(&p, costMat, used.size(), used.size(), HUNGARIAN_MODE_MAXIMIZE_UTIL);
+  hungarian_solve(&p);
+
+  vector<pair<int, int> > newSolution = solution_;
+  for (int i = 0; i < used.size(); ++i) {
+    int dest = -1;
+    int sumTot = 0;
+    for (int j = 0; j < used.size(); ++j) {
+      sumTot += p.assignment[i][j];
+      if (p.assignment[i][j])
+        dest = j;
+    }
+    newSolution[used[dest]].second = solution_[used[i]].second;
+    assert (sumTot == 1);
+  }
+  solution_ = newSolution;
+
+  hungarian_free(&p);
+  for (int i = 0; i < used.size(); ++i) {
+    delete[] costMat[i];
+  }
+  delete[] costMat;
+  //cout << "Solved assignment problem" << endl;
+}
+
 int Problem::randomNextImageVertical() const {
   vector<int> imgs;
   for (int i = 0; i < nbImages(); ++i)
@@ -277,7 +352,9 @@ int Problem::randomNextImageVertical() const {
 
 void Problem::try2Opt() {
   int e1 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
-  int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
+  //int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
+  int offset = uniform_int_distribution<int>(1, 100)(rgen_);
+  int e2 = (e1 + offset) % (nbSlides() - 1);
   if (e1 == e2) return;
   assert (e1 + 1 < (int) solution_.size());
   assert (e2 + 1 < (int) solution_.size());
@@ -295,8 +372,11 @@ void Problem::try2Opt() {
 }
 
 void Problem::tryExchange() {
+  int subrangeSize = 500;
   int e1 = uniform_int_distribution<int>(0, nbSlides()-1)(rgen_);
-  int e2 = uniform_int_distribution<int>(0, nbSlides()-1)(rgen_);
+  //int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
+  int offset = uniform_int_distribution<int>(2, subrangeSize)(rgen_);
+  int e2 = (e1 + offset) % nbSlides();
   if (abs(e1 - e2) <= 1) return;
   Roaring tags1 = tags(solution_[e1]);
   Roaring tags2 = tags(solution_[e2]);
@@ -324,15 +404,78 @@ void Problem::tryExchange() {
   }
   int gain = newObj - oldObj;
   if (gain >= 0) {
-    cout << "Improvement found: " << gain << endl;
+    //cout << "Improvement found: " << gain << endl;
     swap(solution_[e1], solution_[e2]);
   }
 }
 
-void Problem::reoptimize() {
+void Problem::tryVerticalExchange() {
+  int subrangeSize = 500;
+  int e1 = uniform_int_distribution<int>(0, nbSlides()-1)(rgen_);
+  //int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
+  int offset = uniform_int_distribution<int>(2, subrangeSize)(rgen_);
+  int e2 = (e1 + offset) % nbSlides();
+  if (abs(e1 - e2) <= 1) return;
+  if (solution_[e1].second < 0 || solution_[e2].second < 0) return;
+
+  pair<int, int> before1 = solution_[e1];
+  pair<int, int> before2 = solution_[e2];
+  bool first1 = bernoulli_distribution()(rgen_);
+  bool first2 = bernoulli_distribution()(rgen_);
+  pair<int, int> after1 = solution_[e1];
+  pair<int, int> after2 = solution_[e2];
+  if (first1 && first2)   swap(after1.first, after2.first);
+  if (first1 && !first2)  swap(after1.first, after2.second);
+  if (!first1 && first2)  swap(after1.second, after2.first);
+  if (!first1 && !first2) swap(after1.second, after2.second);
+
+  Roaring tb1 = tags(before1);
+  Roaring tb2 = tags(before2);
+  Roaring ta1 = tags(after1);
+  Roaring ta2 = tags(after2);
+
+  int oldObj = 0;
+  int newObj = 0;
+  if (e1 > 0) {
+    Roaring prev = tags(solution_[e1-1]);
+    oldObj += distance(tb1, prev);
+    newObj += distance(ta1, prev);
+  }
+  if (e2 > 0) {
+    Roaring prev = tags(solution_[e2-1]);
+    oldObj += distance(tb2, prev);
+    newObj += distance(ta2, prev);
+  }
+  if (e1 + 1 < nbSlides()) {
+    Roaring prev = tags(solution_[e1+1]);
+    oldObj += distance(tb1, prev);
+    newObj += distance(ta1, prev);
+  }
+  if (e2 + 1 < nbSlides()) {
+    Roaring prev = tags(solution_[e2+1]);
+    oldObj += distance(tb2, prev);
+    newObj += distance(ta2, prev);
+  }
+  int gain = newObj - oldObj;
+  if (gain > 0) {
+    //cout << "Improvement found: " << gain << endl;
+    solution_[e1] = after1;
+    solution_[e2] = after2;
+  }
+}
+
+void Problem::reoptimizeLocal() {
   for (int i = 0; i < 1000000; ++i) {
     try2Opt();
-    tryExchange();
+    tryVerticalExchange();
+    if (bernoulli_distribution(0.1)(rgen_))
+        tryExchange();
+  }
+}
+
+void Problem::reoptimizeAssignment() {
+  for (int i = 0; i < 1; ++i) {
+    optimizeVerticalAssignment();
   }
 }
 
@@ -343,14 +486,19 @@ int main(int argc, char **argv) {
   }
 
   Problem pb = Problem::read(argv[1]);
-  pb.report();
+  //pb.report();
   if (argc >= 3) {
     pb.readSolution(argv[2]);
   }
+  //pb.initNaive();
   //pb.initGreedy();
-  pb.reoptimize();
+  cout << "Initial objective value: " << pb.objective() << endl;
+
+  pb.reoptimizeLocal();
+  pb.reoptimizeAssignment();
 
   cout << "Objective value: " << pb.objective() << endl;
+  cout << endl;
 
   if (argc >= 3) {
     pb.writeSolution(argv[2]);
