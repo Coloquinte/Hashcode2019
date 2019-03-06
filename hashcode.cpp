@@ -279,14 +279,14 @@ void Problem::optimizeVerticalAssignment() {
   }
 
   //cout << "Creating assignment problem" << endl;
-  int subrangeSize = 20000;
+  int subrangeSize = 80000;
   int start = uniform_int_distribution<int>(0, nbSlides() - 1)(rgen_);
   vector<int> allSlides;
   for (int i = 0; i < subrangeSize && i < nbSlides(); ++i)
     allSlides.push_back( (start + i) % nbSlides());
   shuffle(allSlides.begin(), allSlides.end(), rgen_);
 
-  const int maxSlides = 5000;
+  const int maxSlides = 20000;
   set<int> usedSet;
   for (int s : allSlides) {
     if (usedSet.size() > maxSlides) break;
@@ -376,7 +376,7 @@ void Problem::try2Opt() {
 }
 
 void Problem::tryExchange() {
-  int subrangeSize = 10000;
+  int subrangeSize = 20000;
   int e1 = uniform_int_distribution<int>(0, nbSlides()-1)(rgen_);
   //int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
   int offset = uniform_int_distribution<int>(2, subrangeSize)(rgen_);
@@ -414,7 +414,7 @@ void Problem::tryExchange() {
 }
 
 void Problem::tryVerticalExchange() {
-  int subrangeSize = 10000;
+  int subrangeSize = 80000;
   int e1 = uniform_int_distribution<int>(0, nbSlides()-1)(rgen_);
   //int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
   int offset = uniform_int_distribution<int>(2, subrangeSize)(rgen_);
@@ -472,7 +472,7 @@ void Problem::reoptimizeLocal() {
   chrono::time_point<std::chrono::system_clock> startTime = chrono::system_clock::now();
   while (true) {
     chrono::time_point<std::chrono::system_clock> curTime = chrono::system_clock::now();
-    if (chrono::duration<double>(curTime - startTime).count() > 20.0)
+    if (chrono::duration<double>(curTime - startTime).count() > 300.0)
       return;
     try2Opt();
     tryVerticalExchange();
@@ -485,8 +485,9 @@ void Problem::reoptimizeAssignment() {
   chrono::time_point<std::chrono::system_clock> startTime = chrono::system_clock::now();
   while (true) {
     chrono::time_point<std::chrono::system_clock> curTime = chrono::system_clock::now();
-    if (chrono::duration<double>(curTime - startTime).count() > 20.0)
+    if (chrono::duration<double>(curTime - startTime).count() > 300.0)
       return;
+    cout << "Optimizing assignment" << endl;
     optimizeVerticalAssignment();
   }
 }
