@@ -9,6 +9,7 @@
 #include <random>
 #include <sstream>
 #include <cassert>
+#include <chrono>
 
 #include "roaring.hh"
 #include "roaring.c"
@@ -278,14 +279,14 @@ void Problem::optimizeVerticalAssignment() {
   }
 
   //cout << "Creating assignment problem" << endl;
-  int subrangeSize = 5000;
+  int subrangeSize = 20000;
   int start = uniform_int_distribution<int>(0, nbSlides() - 1)(rgen_);
   vector<int> allSlides;
   for (int i = 0; i < subrangeSize && i < nbSlides(); ++i)
     allSlides.push_back( (start + i) % nbSlides());
   shuffle(allSlides.begin(), allSlides.end(), rgen_);
 
-  const int maxSlides = 1000;
+  const int maxSlides = 5000;
   set<int> usedSet;
   for (int s : allSlides) {
     if (usedSet.size() > maxSlides) break;
@@ -375,7 +376,7 @@ void Problem::try2Opt() {
 }
 
 void Problem::tryExchange() {
-  int subrangeSize = 500;
+  int subrangeSize = 10000;
   int e1 = uniform_int_distribution<int>(0, nbSlides()-1)(rgen_);
   //int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
   int offset = uniform_int_distribution<int>(2, subrangeSize)(rgen_);
@@ -413,7 +414,7 @@ void Problem::tryExchange() {
 }
 
 void Problem::tryVerticalExchange() {
-  int subrangeSize = 500;
+  int subrangeSize = 10000;
   int e1 = uniform_int_distribution<int>(0, nbSlides()-1)(rgen_);
   //int e2 = uniform_int_distribution<int>(0, nbSlides()-2)(rgen_);
   int offset = uniform_int_distribution<int>(2, subrangeSize)(rgen_);
@@ -468,7 +469,11 @@ void Problem::tryVerticalExchange() {
 }
 
 void Problem::reoptimizeLocal() {
-  for (int i = 0; i < 1000000; ++i) {
+  chrono::time_point<std::chrono::system_clock> startTime = chrono::system_clock::now();
+  while (true) {
+    chrono::time_point<std::chrono::system_clock> curTime = chrono::system_clock::now();
+    if (chrono::duration<double>(curTime - startTime).count() > 20.0)
+      return;
     try2Opt();
     tryVerticalExchange();
     if (bernoulli_distribution(0.1)(rgen_))
@@ -477,7 +482,11 @@ void Problem::reoptimizeLocal() {
 }
 
 void Problem::reoptimizeAssignment() {
-  for (int i = 0; i < 10; ++i) {
+  chrono::time_point<std::chrono::system_clock> startTime = chrono::system_clock::now();
+  while (true) {
+    chrono::time_point<std::chrono::system_clock> curTime = chrono::system_clock::now();
+    if (chrono::duration<double>(curTime - startTime).count() > 20.0)
+      return;
     optimizeVerticalAssignment();
   }
 }
